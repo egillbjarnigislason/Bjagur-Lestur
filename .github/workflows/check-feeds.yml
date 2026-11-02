@@ -42,14 +42,14 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
 
-  read:
+  scrape:
     needs: check
     if: needs.check.outputs.outlets != '[]' && needs.check.outputs.outlets != ''
     strategy:
       fail-fast: false
       matrix:
         outlet: ${{ fromJSON(needs.check.outputs.outlets) }}
-    uses: ./.github/workflows/read-outlet.yml
+    uses: ./.github/workflows/scrape-outlet.yml
     with:
       outlet: ${{ matrix.outlet }}
     secrets: inherit

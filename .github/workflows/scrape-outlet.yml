@@ -1,6 +1,6 @@
-name: Read outlet
+name: Scrape outlet
 
-# Reads the queued ('pending') articles of ONE outlet. Normally started by
+# Scrapes the queued ('pending') articles of ONE outlet. Normally started by
 # "Check feeds"; you can also run it by hand from the Actions tab.
 on:
   workflow_call:
@@ -12,7 +12,7 @@ on:
   workflow_dispatch:
     inputs:
       outlet:
-        description: "Outlet to read"
+        description: "Outlet to scrape"
         type: choice
         required: true
         options: [visir, mbl, ruv]
@@ -25,7 +25,7 @@ on:
         type: boolean
         default: false
       backfill:
-        description: "Fill new metadata columns on old rows instead of reading new ones"
+        description: "Fill new metadata columns on old rows instead of scraping new ones"
         type: boolean
         default: false
 
@@ -33,12 +33,12 @@ permissions:
   contents: read
 
 jobs:
-  read:
+  scrape:
     runs-on: ubuntu-latest
     timeout-minutes: 45
-    # One read per outlet at a time, so slow runs never overlap and double-fetch.
+    # One scrape per outlet at a time, so slow runs never overlap and double-fetch.
     concurrency:
-      group: read-${{ inputs.outlet }}
+      group: scrape-${{ inputs.outlet }}
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -50,13 +50,13 @@ jobs:
 
       - run: pip install -r requirements.txt
 
-      - name: Read ${{ inputs.outlet }}
+      - name: Scrape ${{ inputs.outlet }}
         run: |
           args=()
           [ -n "$LIMIT" ] && args+=(--limit "$LIMIT")
           [ "$DRY_RUN" = "true" ] && args+=(--dry-run)
           [ "$BACKFILL" = "true" ] && args+=(--backfill)
-          python -u -m bjagur.read_outlet "$OUTLET" "${args[@]}"
+          python -u -m bjagur.scrape_outlet "$OUTLET" "${args[@]}"
         env:
           PYTHONUNBUFFERED: "1"
           OUTLET: ${{ inputs.outlet }}
