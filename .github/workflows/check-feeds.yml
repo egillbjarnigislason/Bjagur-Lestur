@@ -1,0 +1,55 @@
+name: Check feeds
+
+# Reads the three RSS feeds (a few seconds), queues new articles in Supabase, and
+# starts one "Scrape outlet" run for each outlet that has articles waiting.
+#
+# GitHub treats `schedule` as best-effort: runs can start 5-30 minutes late or be
+# skipped when GitHub is busy, and the shortest supported interval is 5 minutes. The
+# odd minute numbers below avoid the congested :00 / :30 marks.
+on:
+  schedule:
+    - cron: "7,17,27,37,47,57 * * * *"   # about every 10 minutes (UTC)
+  workflow_dispatch:                      # "Run workflow" button
+
+permissions:
+  contents: read
+
+concurrency:
+  group: check-feeds
+  cancel-in-progress: false
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      outlets: ${{ steps.check.outputs.outlets }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - run: pip install -r requirements.txt
+
+      - name: Check feeds
+        id: check
+        run: python -u -m bjagur.check_feeds
+        env:
+          PYTHONUNBUFFERED: "1"
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+
+  read:
+    needs: check
+    if: needs.check.outputs.outlets != '[]' && needs.check.outputs.outlets != ''
+    strategy:
+      fail-fast: false
+      matrix:
+        outlet: ${{ fromJSON(needs.check.outputs.outlets) }}
+    uses: ./.github/workflows/read-outlet.yml
+    with:
+      outlet: ${{ matrix.outlet }}
+    secrets: inherit

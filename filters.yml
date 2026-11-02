@@ -1,0 +1,114 @@
+# =============================================================================
+#  filters.yml - what gets scraped and what gets skipped
+# =============================================================================
+#  Edit this file, commit, push. No code changes needed.
+#
+#  HOW MATCHING WORKS
+#    * Comparisons ignore case and accents: "Íþróttir", "ithrottir" and "ÍÞRÓTTIR"
+#      are all the same. "*" is a wildcard: "Fótbolti*" matches "Fótboltinn".
+#    * `defaults` apply to every outlet. An outlet's lists are ADDED to the default
+#      lists; single values (true/false, numbers) REPLACE the default.
+#    * Filters run in two stages (see bjagur/filters.py):
+#        feed    - uses only RSS data (title, URL, RSS category, age). Matching
+#                  articles are never stored.
+#        article - uses the full page (section, tags, authors, paywall, length).
+#                  Matching articles are stored with scrape_status 'filtered' and the
+#                  reason in `filter_reason`, so they are not fetched again.
+#    * A rule that needs data an article does not have is skipped (for example
+#      `exclude_tags` cannot apply at the feed stage). The `include_*` rules are
+#      lenient: an article whose section/tags/type is unknown is NOT excluded.
+#
+#  AVAILABLE FILTER KNOBS (under `filters:`)
+#    exclude_sections        top-level category              ["Íþróttir"]
+#    include_sections        keep ONLY these categories      ["Innlent", "Erlent"]
+#    exclude_subsections     finer category / topic          ["Enski boltinn"]
+#    exclude_tags            article tags                    ["Landsbankamálið"]
+#    include_tags_any        keep only if it has >= 1 tag    ["Efnahagsmál"]
+#    exclude_article_types   format of the article           ["opinion", "recipe"]
+#    include_article_types   keep ONLY these formats         ["news"]
+#    exclude_authors         by author name                  ["Fréttastofa RÚV"]
+#    exclude_source_labels   Mbl "source" label              ["AFP", "Spursmál"]
+#    exclude_url_prefixes    URL path starts with            ["/sport/"]
+#    exclude_url_regex       regex on the full URL           ['/2026/\d\d/\d\d/.*_beint/']
+#    exclude_title_regex     regex on the title (any case)   ["^Dagskráin í dag"]
+#    skip_paywalled          true = never store locked articles (default true)
+#    min_content_chars       drop articles shorter than this (0 = off)
+#    max_age_hours           ignore feed items older than this (null = off)
+#
+#  SCRAPING KNOBS (under `scraping:`)
+#    max_articles_per_run    cap per outlet per workflow run; the rest wait their turn
+#    request_delay_seconds   minimum pause between page requests (null = outlet default)
+#    max_attempts            failed fetches before an article is marked 'failed'
+# =============================================================================
+
+defaults:
+  filters:
+    skip_paywalled: true
+    min_content_chars: 150
+    max_age_hours: 72
+  scraping:
+    max_articles_per_run: 60
+    max_attempts: 3
+
+outlets:
+
+  # ---------------------------------------------------------------------------
+  # Vísir  (database name: "Vísir")
+  #   Section is only available on the article page (not in the RSS feed), so
+  #   section filters apply at the "article" stage.
+  #   Section values seen:   Frettir, Lifid, Skodun, Sport, Vidskipti
+  #   Article types:         news, opinion        (opinion = section "Skodun")
+  #   Tags are free-form, e.g. "Enski boltinn", "Dómsmál", "Reykjavík".
+  # ---------------------------------------------------------------------------
+  visir:
+    filters:
+      exclude_sections: [Sport]
+      # exclude_sections: [Sport, Lifid]          # also skip lifestyle
+      # exclude_article_types: [opinion]          # skip opinion pieces
+      # exclude_title_regex: ["^Dagskráin í dag"] # daily TV/sports schedule posts
+    scraping:
+      request_delay_seconds: 2
+
+  # ---------------------------------------------------------------------------
+  # Mbl  (database name: "Mbl")
+  #   RSS <category> values seen:
+  #     Innlent, Erlent, Viðskipti, Íþróttir, Menning, Smartland, Fólk, Matur,
+  #     Ferðalög, K100, 200 mílur
+  #   URL sections (first path segment): frettir, sport, vidskipti, menning,
+  #     smartland, folk, matur, ferdalog, k100, 200milur
+  #   Sports sub-sections (second segment): fotbolti, enski, handbolti, korfubolti,
+  #     formula, efstadeild, frettir ...
+  #   Source labels (shown in the page header): mbl, Morgunblaðið, AFP, Spursmál, ...
+  #   "Morgunblaðið" articles are usually paywalled (mbl+ subscription).
+  #   article_type is "recipe" for recipe pages, otherwise "news".
+  # ---------------------------------------------------------------------------
+  mbl:
+    filters:
+      exclude_sections: [Íþróttir]
+      exclude_url_prefixes: ["/sport/"]
+      # exclude_sections: [Íþróttir, Smartland, K100, Fólk]   # gossip / radio too
+      # exclude_article_types: [recipe]
+      # exclude_source_labels: [Spursmál]
+    scraping:
+      # mbl.is answers 429 (Too Many Requests) when pages are fetched quickly. The
+      # client also backs off automatically on 429, so this can be tuned down.
+      request_delay_seconds: 10
+      max_articles_per_run: 40
+
+  # ---------------------------------------------------------------------------
+  # RÚV  (database name: "RÚV")  - no paywall
+  #   Sections (URL slug / label):  innlent / Innlendar fréttir,
+  #     erlent / Erlendar fréttir, ithrottir / Íþróttir,
+  #     menning-og-daegurmal / Menning og dægurmál
+  #   Subsection = RÚV "topic", e.g. Handbolti, Fótbolti, Dómstólar, Veður,
+  #     Lögreglumál, Bandaríkin, Bókmenntagagnrýni ...
+  #   Tags are free-form keywords, e.g. "dómstólar", "Íris Helga Jónatansdóttir".
+  #   article_type values seen: færsla (regular article), fréttamoli (news brief)
+  # ---------------------------------------------------------------------------
+  ruv:
+    filters:
+      exclude_sections: [Íþróttir]          # matches the slug "ithrottir" too
+      # exclude_article_types: [fréttamoli] # skip the very short briefs
+      # exclude_subsections: [Veður]
+    scraping:
+      request_delay_seconds: 2
